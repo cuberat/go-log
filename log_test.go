@@ -46,7 +46,7 @@ func TestAlert(t *testing.T) {
     logger.Crit("boo")
 
     log_str := buffer.String()
-    // t.Logf("log: %s", log_str)
+    t.Logf("log: %s", log_str)
 
     if !strings.Contains(log_str, "stuff=bar") {
         t.Error("Output should contain \"stuff=bar\"")
@@ -55,4 +55,7 @@ func TestAlert(t *testing.T) {
     if strings.Contains(log_str, "boo") {
         t.Error("Output should NOT contain \"boo\"")
     }
+
+    t.Logf("log.LOG_EMERG=%d", log.LOG_EMERG)
+    t.Logf("log.LOG_DEBUG=%d", log.LOG_DEBUG)
 }

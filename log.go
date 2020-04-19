@@ -29,11 +29,10 @@ package log
 import (
     "fmt"
     "io"
-    // stdlog "log"
-    // "log/syslog"
     "os"
     "path"
     "runtime"
+    "strings"
     "time"
 )
 
@@ -51,18 +50,18 @@ const (
     LOG_DEBUG
 )
 
-// type SyslogLike interface {
-//     Alert(m string) error
-//     Close() error
-//     Crit(m string) error
-//     Debug(m string) error
-//     Emerg(m string) error
-//     Err(m string) error
-//     Info(m string) error
-//     Notice(m string) error
-//     Warning(m string) error
-//     Write(b []byte) (int, error)
-// }
+type SyslogLike interface {
+    Alert(m string) error
+    Close() error
+    Crit(m string) error
+    Debug(m string) error
+    Emerg(m string) error
+    Err(m string) error
+    Info(m string) error
+    Notice(m string) error
+    Warning(m string) error
+    Write(b []byte) (int, error)
+}
 
 type TimestampFunc func() (string)
 
@@ -72,25 +71,21 @@ type Logger struct {
     ts_func TimestampFunc
     prefix string
     lock_chan chan bool
-    // syslog_writer *syslog.Writer
-    // logger *log.Logger
+    syslog_writer SyslogLike
 }
 
-// func NewFromLogger(logger *log.Logger, sev Severity) (*Logger) {
-//     l := new(Logger)
-//     l.logger = logger
-//     l.severity_thresh = sev
-//
-//     return l
-// }
+const (
+    flag_is_syslog uint32 = 1 << iota
+)
 
-// func NewFromSyslog(syslog_writer *syslog.Writer, sev Severity) (*Logger) {
-//     l := new(Logger)
-//     l.syslog_writer = syslog_writer
-//     l.severity_thresh = sev
-//
-//     return l
-// }
+func (l *Logger) set_output(w io.Writer) {
+    l.writer = w
+    if sysl, ok := w.(SyslogLike); ok {
+        l.syslog_writer = sysl
+    } else {
+        l.syslog_writer = nil
+    }
+}
 
 func New(w io.Writer, sev Severity, prefix string) (*Logger) {
     if prefix == "" {
@@ -99,20 +94,20 @@ func New(w io.Writer, sev Severity, prefix string) (*Logger) {
 
     l := new(Logger)
     l.ts_func = default_ts_func
-    l.writer = w
+    l.set_output(w)
     l.severity_thresh = sev
     l.prefix = prefix
     l.lock_chan = make(chan bool, 1)
 
     return l
-
-    // logger := log.New(w, prefix, log.LstdFlags | log.Lshortfile | log.LUTC)
-    // return NewFromLogger(logger, sev)
 }
 
 func (l *Logger) Alert(m string) error {
     if l.severity_thresh < LOG_ALERT {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Alert(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -121,13 +116,19 @@ func (l *Logger) Alertf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_ALERT {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Alert(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Crit(m string) error {
     if l.severity_thresh < LOG_CRIT {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Crit(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -136,13 +137,19 @@ func (l *Logger) Critf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_CRIT {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Crit(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Debug(m string) error {
     if l.severity_thresh < LOG_DEBUG {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Debug(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -151,13 +158,19 @@ func (l *Logger) Debugf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_DEBUG {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Debug(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Emerg(m string) error {
     if l.severity_thresh < LOG_EMERG {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Emerg(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -166,13 +179,19 @@ func (l *Logger) Emergf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_EMERG {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Emerg(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Err(m string) error {
     if l.severity_thresh < LOG_ERR {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Err(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -181,13 +200,19 @@ func (l *Logger) Errf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_ERR {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Err(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Info(m string) error {
     if l.severity_thresh < LOG_INFO {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Info(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -196,13 +221,19 @@ func (l *Logger) Infof(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_INFO {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Alert(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Notice(m string) error {
     if l.severity_thresh < LOG_NOTICE {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Notice(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -211,13 +242,19 @@ func (l *Logger) Noticef(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_NOTICE {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Notice(l.get_output(1, fmt.Sprintf(format, v...),
+            flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Warning(m string) error {
     if l.severity_thresh < LOG_WARNING {
         return nil
+    }
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Warning(l.get_output(1, m, flag_is_syslog))
     }
     return l.Output(1, m)
 }
@@ -226,16 +263,39 @@ func (l *Logger) Warningf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_WARNING {
         return nil
     }
-
+    if l.syslog_writer != nil {
+        return l.syslog_writer.Warning(l.get_output(1,
+            fmt.Sprintf(format, v...), flag_is_syslog))
+    }
     return l.Output(1, fmt.Sprintf(format, v...))
 }
 
-// func (l *Logger) Fatal(v ...interface{}) {
-//
-// }
-//
-// func (l *Logger) Fatalf(format string, v ...interface{}) {
-// }
+func (l *Logger) Write(b []byte) (int, error) {
+    if l.syslog_writer != nil {
+        str := l.get_output(1, string(b), flag_is_syslog)
+        _, err := l.syslog_writer.Write([]byte(str))
+        return len(b), err
+    }
+
+    err := l.Output(1, string(b))
+
+    return len(b), err
+}
+
+func (l *Logger) Fatal(v ...interface{}) {
+    l.Print(v...)
+    os.Exit(1)
+}
+
+func (l *Logger) Fatalf(format string, v ...interface{}) {
+    l.Printf(format, v...)
+    os.Exit(1)
+}
+
+func (l *Logger) Fatalln(v ...interface{}) {
+    l.Println(v...)
+    os.Exit(1)
+}
 
 func (l *Logger) get_lock() {
     l.lock_chan <- true
@@ -245,54 +305,89 @@ func (l *Logger) release_lock() {
     <-l.lock_chan
 }
 
-func (l *Logger) Output(calldepth int, s string) error {
-    ts := l.ts_func()
+func (l *Logger) get_output(call_depth int, s string, flags uint32) string {
+    parts := make([]string, 0, 4)
+
+    // Leave out the timestamp and prefix if the writer looks like syslog, since
+    // syslog will add these itself.
+    if (flags & flag_is_syslog) == 0 {
+        ts := l.ts_func()
+        parts = append(parts, ts + " ")
+        parts = append(parts, l.prefix)
+    }
+
+    _, file_name, line, _ := runtime.Caller(call_depth + 1)
+    source := fmt.Sprintf("%s:%d", path.Base(file_name), line)
+    parts = append(parts, source + ": ")
+
+    if !strings.HasSuffix(s, "\n") {
+        s += "\n"
+    }
+
+    parts = append(parts, s)
+
+    return strings.Join(parts, "")
+}
+
+func (l *Logger) Output(call_depth int, s string) error {
+    out_str := l.get_output(call_depth + 1, s, 0)
 
     l.get_lock()
     defer l.release_lock()
 
-    _, file_name, line, _ := runtime.Caller(calldepth + 1)
-    source := fmt.Sprintf("%s:%d", path.Base(file_name), line)
-
-    out_str := fmt.Sprintf("%s %s%s", ts, l.prefix, source)
-
-    _, err := fmt.Fprintf(l.writer, "%s %s\n", out_str, s)
+    _, err := fmt.Fprint(l.writer, out_str)
     return err
-
-    // if l.logger != nil {
-    //     return l.logger.Output(calldepth + 1, s)
-    // }
-
-    // if l.syslog_writer != nil {
-    //
-    // }
-
-    // return fmt.Errorf("no logger defined")
 }
 
-// func (l *Logger) Panic(v ...interface{}) {
-//
-// }
-//
-// func (l *Logger) Panicf(format string, v ...interface{}) {
-//
-// }
-//
-// func (l *Logger) Panicln(v ...interface{}) {
-//
-// }
-//
-// func (l *Logger) Prefix() string {
-//
-// }
-//
-// func (l *Logger) Print(v ...interface{}) {
-//
-// }
-//
-// func (l *Logger) Printf(format string, v ...interface{}) {
-//
-// }
+func (l *Logger) Panic(v ...interface{}) {
+    if l.syslog_writer != nil {
+        str := l.get_output(1, fmt.Sprint(v...), flag_is_syslog)
+        l.syslog_writer.Write([]byte(str))
+    } else {
+        l.Output(1, fmt.Sprint(v...))
+    }
+
+    panic(fmt.Sprint(v...))
+}
+
+func (l *Logger) Panicf(format string, v ...interface{}) {
+    if l.syslog_writer != nil {
+        str := l.get_output(1,
+            fmt.Sprintf(format, v...), flag_is_syslog)
+        l.syslog_writer.Write([]byte(str))
+    } else {
+        l.Output(1, fmt.Sprintf(format, v...))
+    }
+
+    panic(fmt.Sprintf(format, v...))
+}
+
+
+func (l *Logger) Panicln(v ...interface{}) {
+    if l.syslog_writer != nil {
+        str := l.get_output(1, fmt.Sprintln(v...), flag_is_syslog)
+        l.syslog_writer.Write([]byte(str))
+    } else {
+        l.Output(1, fmt.Sprint(v...))
+    }
+
+    panic(fmt.Sprintln(v...))
+}
+
+func (l *Logger) Print(v ...interface{}) {
+    m := fmt.Sprint(v...)
+    l.Write([]byte(m))
+}
+
+func (l *Logger) Printf(format string, v ...interface{}) {
+    m := fmt.Sprintf(format, v...)
+    l.Write([]byte(m))
+}
+
+func (l *Logger) Println(v ...interface{}) {
+    m := fmt.Sprintln(v...)
+    l.Write([]byte(m))
+}
 
 func default_ts_func() string {
     t := time.Now().UTC()

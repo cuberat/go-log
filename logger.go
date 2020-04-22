@@ -57,6 +57,24 @@ func (l *Logger) set_output(w io.Writer) {
     }
 }
 
+func (l *Logger) log_sev(call_depth int, sev Severity, m string) error {
+    if l.severity_thresh < sev {
+        return nil
+    }
+
+    return l.output(call_depth + 1, m)
+}
+
+func (l *Logger) log_sevf(call_depth int, sev Severity, format string,
+    v ...interface{}) error {
+
+    if l.severity_thresh < sev {
+        return nil
+    }
+
+    return l.output(call_depth + 1, fmt.Sprintf(format, v...))
+}
+
 // Logs a message with severity LOG_ALERT.
 func (l *Logger) Alert(m string) error {
     if l.severity_thresh < LOG_ALERT {
@@ -358,6 +376,24 @@ func (l *Logger) output_with_flags(call_depth int, s string,
     _, err := fmt.Fprint(l.writer, out_str)
     return err
 }
+
+func (l *Logger) outputv(call_depth int, v ...interface{}) error {
+    m := fmt.Sprint(v...)
+    return l.output_with_flags(call_depth + 1, m, 0)
+}
+
+func (l *Logger) outputlnv(call_depth int, v ...interface{}) error {
+    m := fmt.Sprintln(v...)
+    return l.output_with_flags(call_depth + 1, m, 0)
+}
+
+func (l *Logger) outputf(call_depth int, format string,
+    v ...interface{}) error {
+
+    m := fmt.Sprintf(format, v...)
+    return l.output_with_flags(call_depth + 1, m, 0)
+}
+
 
 // Equivalent to Print() followed by a call to panic().
 func (l *Logger) Panic(v ...interface{}) {

@@ -67,6 +67,7 @@ const (
 
 var (
     sev_string_to_sev map[string]Severity
+    default_logger *Logger
 )
 
 type SyslogLike interface {
@@ -84,8 +85,6 @@ type SyslogLike interface {
 
 type TimestampFunc func() (string)
 
-
-
 func init() {
     sev_string_to_sev = map[string]Severity{
         "log_emerg": LOG_EMERG,
@@ -100,6 +99,8 @@ func init() {
         "log_info": LOG_INFO,
         "log_debug": LOG_DEBUG,
     }
+
+    default_logger = New(os.Stderr, LOG_DEBUG, "")
 }
 
 func SeverityFromString(sev_string string) (Severity, error) {
@@ -148,4 +149,117 @@ func NewFromFile(file_path string, sev_thresh Severity, prefix string) (*Logger,
 func default_ts_func() string {
     t := time.Now().UTC()
     return t.Format(time.RFC3339)
+}
+
+func Alert(m string) error {
+    return default_logger.log_sev(1, LOG_ALERT, m)
+}
+
+func Alertf(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_ALERT, format, v...)
+}
+
+func Crit(m string) error {
+    return default_logger.log_sev(1, LOG_CRIT, m)
+}
+
+func Critf(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_CRIT, format, v...)
+}
+
+func Debug(m string) error {
+    return default_logger.log_sev(1, LOG_DEBUG, m)
+}
+
+func Debugf(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_DEBUG, format, v...)
+}
+
+func Emerg(m string) error {
+    return default_logger.log_sev(1, LOG_EMERG, m)
+}
+
+func Emergf(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_EMERG, format, v...)
+}
+
+func Err(m string) error {
+    return default_logger.log_sev(1, LOG_ERR, m)
+}
+
+func Errf(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_ERR, format, v...)
+}
+
+func Info(m string) error {
+    return default_logger.log_sev(1, LOG_INFO, m)
+}
+
+func Infof(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_INFO, format, v...)
+}
+
+func Notice(m string) error {
+    return default_logger.log_sev(1, LOG_NOTICE, m)
+}
+
+func Noticef(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_NOTICE, format, v...)
+}
+
+func Warning(m string) error {
+    return default_logger.log_sev(1, LOG_WARNING, m)
+}
+
+func Warningf(format string, v ...interface{}) error {
+    return default_logger.log_sevf(1, LOG_WARNING, format, v...)
+}
+
+// FIXME: fix up call_depth
+// Equivalent to Print() followed by a call to os.Exit(1).
+func Fatal(v ...interface{}) {
+    default_logger.outputv(1, v...)
+    os.Exit(1)
+}
+
+// Equivalent to Printf() followed by a call to os.Exit(1).
+func Fatalf(format string, v ...interface{}) {
+    default_logger.outputf(1, format, v...)
+    os.Exit(1)
+}
+
+// Equivalent to Println() followed by a call to os.Exit(1).
+func Fatalln(v ...interface{}) {
+    default_logger.outputlnv(1, v...)
+    os.Exit(1)
+}
+
+func Panic(v ...interface{}) {
+    default_logger.outputv(1, v...)
+    panic(fmt.Sprint(v...))
+}
+
+func Panicf(format string, v ...interface{}) {
+    default_logger.outputf(1, format, v...)
+    panic(fmt.Sprintf(format, v...))
+}
+
+func Panicln(v ...interface{}) {
+    default_logger.outputlnv(1, v...)
+    panic(fmt.Sprintln(v...))
+}
+
+// Prints to the logger. Arguments are handled in the manner of fmt.Print.
+func Print(v ...interface{}) {
+    default_logger.outputv(1, v...)
+}
+
+// Prints to the logger. Arguments are handled in the manner of fmt.Printf.
+func Printf(format string, v ...interface{}) {
+    default_logger.outputf(1, format, v...)
+}
+
+// Prints to the logger. Arguments are handled in the manner of fmt.Println.
+func Println(v ...interface{}) {
+    default_logger.outputlnv(1, v...)
 }

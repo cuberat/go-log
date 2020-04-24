@@ -32,22 +32,36 @@ package log_test
 
 import (
     "bytes"
+    "fmt"
+    "io"
     log "github.com/cuberat/go-log"
     "strings"
     "testing"
 )
 
 type LogTestFunc func(*log.Logger) ()
+type LogPkgTestFunc func() ()
+
+type LogFunc func(string) error
 
 type LogLevelTester struct {
     Key string
     LogIt LogTestFunc
     LogSev log.Severity
 }
+type LogPkgLevelTester struct {
+    Key string
+    LogIt LogPkgTestFunc
+    LogSev log.Severity
+}
 
 type SevTestStr struct {
     Name string
     ExpectedSev log.Severity
+}
+
+type SyslogLikeLogger struct {
+    Writer io.Writer
 }
 
 func TestSeverityFromString(t *testing.T) {
@@ -85,7 +99,7 @@ func TestSeverityFromString(t *testing.T) {
     }
 }
 
-func TestSeverityLevels(t *testing.T) {
+func TestSeverityLogLevels(t *testing.T) {
     _, _, _, all, _ := get_level_before_after("emerg")
     for _, tester := range all {
         test_func := get_level_test_func(tester)
@@ -127,6 +141,93 @@ func get_level_test_func(conf *LogLevelTester) (func(*testing.T)) {
     return test_func
 }
 
+func TestSeverityLogLevelsSyslog(t *testing.T) {
+    _, _, _, all, _ := get_level_before_after("emerg")
+    for _, tester := range all {
+        test_func := get_syslog_like_level_test_func(tester)
+        if !t.Run(tester.Key, test_func) {
+            t.Errorf("t.Run() failed when testing %q", tester.Key)
+        }
+    }
+}
+
+func get_syslog_like_level_test_func(conf *LogLevelTester) (func(*testing.T)) {
+    test_func := func (t *testing.T) {
+        buffer := new(bytes.Buffer)
+        syslog_logger := new(SyslogLikeLogger)
+        syslog_logger.Writer = buffer
+        logger := log.New(syslog_logger, conf.LogSev, "")
+        key := conf.Key
+
+        before, current, after, _, log_all := get_level_before_after(key)
+
+        log_all(logger)
+        log_result := buffer.String()
+        t.Logf("got log: %s", log_result)
+
+        for _, tester := range before {
+            if !strings.Contains(log_result, tester.Key) {
+                t.Errorf("log should contain %q", tester.Key)
+            }
+        }
+
+        if !strings.Contains(log_result, current.Key) {
+            t.Errorf("log should contain %q", current.Key)
+        }
+
+        for _, tester := range after {
+            if strings.Contains(log_result, tester.Key) {
+                t.Errorf("log should NOT contain %q", tester.Key)
+            }
+        }
+    }
+
+    return test_func
+}
+
+func TestPkgSeverityLogLevels(t *testing.T) {
+    _, _, _, all, _ := get_pkg_level_before_after("emerg")
+    for _, tester := range all {
+        test_func := get_pkg_level_test_func(tester)
+        if !t.Run(tester.Key, test_func) {
+            t.Errorf("t.Run() failed when testing %q", tester.Key)
+        }
+    }
+}
+
+func get_pkg_level_test_func(conf *LogPkgLevelTester) (func(*testing.T)) {
+    test_func := func (t *testing.T) {
+        buffer := new(bytes.Buffer)
+        key := conf.Key
+
+        log.SetOutput(buffer)
+        log.SetSeverityThreshold(conf.LogSev)
+
+        before, current, after, _, log_all := get_pkg_level_before_after(key)
+
+        log_all()
+        log_result := buffer.String()
+        // t.Logf("got log: %s", log_result)
+
+        for _, tester := range before {
+            if !strings.Contains(log_result, tester.Key) {
+                t.Errorf("log should contain %q", tester.Key)
+            }
+        }
+
+        if !strings.Contains(log_result, current.Key) {
+            t.Errorf("log should contain %q", current.Key)
+        }
+
+        for _, tester := range after {
+            if strings.Contains(log_result, tester.Key) {
+                t.Errorf("log should NOT contain %q", tester.Key)
+            }
+        }
+    }
+
+    return test_func
+}
 
 func TestLevelEmerg(t *testing.T) {
     buffer := new(bytes.Buffer)
@@ -200,6 +301,51 @@ func get_level_before_after(level string) ([]*LogLevelTester,
     return before, current, after, config, log_all
 }
 
+func get_pkg_level_before_after(level string) ([]*LogPkgLevelTester,
+    *LogPkgLevelTester, []*LogPkgLevelTester, []*LogPkgLevelTester,
+    func()()) {
+
+    var (
+        before []*LogPkgLevelTester
+        current *LogPkgLevelTester
+        after []*LogPkgLevelTester
+    )
+
+    config := []*LogPkgLevelTester{
+        &LogPkgLevelTester{"emerg", pkg_log_emerg, log.LOG_EMERG},
+        &LogPkgLevelTester{"alert", pkg_log_alert, log.LOG_ALERT},
+        &LogPkgLevelTester{"crit", pkg_log_crit, log.LOG_CRIT},
+        &LogPkgLevelTester{"err", pkg_log_err, log.LOG_ERR},
+        &LogPkgLevelTester{"warning", pkg_log_warning, log.LOG_WARNING},
+        &LogPkgLevelTester{"notice", pkg_log_notice, log.LOG_NOTICE},
+        &LogPkgLevelTester{"info", pkg_log_info, log.LOG_INFO},
+        &LogPkgLevelTester{"debug", pkg_log_debug, log.LOG_DEBUG},
+    }
+
+    found := false
+    for _, tester := range config {
+        if tester.Key == level {
+            current = tester
+            found = true
+            continue
+        }
+        if found {
+            after = append(after, tester)
+            continue
+        }
+        before = append(before, tester)
+    }
+
+    log_all := func() {
+        for _, tester := range config {
+            tester.LogIt()
+        }
+    }
+
+    return before, current, after, config, log_all
+}
+
+// Test funcs for logger objects
 func log_emerg(logger *log.Logger) {
     logger.Emerg("emerg")
 }
@@ -232,6 +378,39 @@ func log_debug(logger *log.Logger) {
     logger.Debug("debug")
 }
 
+// Test funcs for log pkg.
+func pkg_log_emerg() {
+    log.Emerg("emerg")
+}
+
+func pkg_log_alert() {
+    log.Alert("alert")
+}
+
+func pkg_log_crit() {
+    log.Crit("crit")
+}
+
+func pkg_log_err() {
+    log.Err("err")
+}
+
+func pkg_log_warning() {
+    log.Warning("warning")
+}
+
+func pkg_log_notice() {
+    log.Notice("notice")
+}
+
+func pkg_log_info() {
+    log.Info("info")
+}
+
+func pkg_log_debug() {
+    log.Debug("debug")
+}
+
 func TestOneAlert(t *testing.T) {
     buffer := new(bytes.Buffer)
     logger := log.New(buffer, log.LOG_ALERT, "")
@@ -255,4 +434,53 @@ func TestOneAlert(t *testing.T) {
 
     t.Logf("log.LOG_EMERG=%d", log.LOG_EMERG)
     t.Logf("log.LOG_DEBUG=%d", log.LOG_DEBUG)
+}
+
+// Syslog-like writer for testing syslog and look-alikes
+func (l *SyslogLikeLogger) Alert(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Close() error {
+    return nil
+}
+
+func (l *SyslogLikeLogger) Crit(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Debug(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Emerg(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Err(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Info(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Notice(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Warning(m string) error {
+    _, err := fmt.Fprintln(l.Writer, m)
+    return err
+}
+
+func (l *SyslogLikeLogger) Write(b []byte) (int, error) {
+    return fmt.Fprintf(l.Writer, "%s\n", b)
 }

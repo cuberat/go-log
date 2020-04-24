@@ -116,6 +116,17 @@ func SeverityFromString(sev_string string) (Severity, error) {
     return Severity(0), fmt.Errorf("Unknown severity %q", sev_string)
 }
 
+func SetOutput(w io.Writer) {
+    default_logger.SetOutput(w)
+}
+
+func SetSeverityThreshold(sev_thresh Severity) {
+    default_logger.SetSeverityThreshold(sev_thresh)
+}
+
+func SetPrefix(prefix string) {
+    default_logger.SetPrefix(prefix)
+}
 
 // Creates a logger from an io.Writer, with the given severity threshold and
 // prefix string.
@@ -127,8 +138,9 @@ func New(w io.Writer, sev_thresh Severity, prefix string) (*Logger) {
     l := new(Logger)
     l.ts_func = default_ts_func
     l.set_output(w)
-    l.severity_thresh = sev_thresh
-    l.prefix = prefix
+    l.SetSeverityThreshold(sev_thresh)
+    l.SetPrefix(prefix)
+
     l.lock_chan = make(chan bool, 1)
 
     return l

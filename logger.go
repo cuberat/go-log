@@ -57,6 +57,21 @@ func (l *Logger) set_output(w io.Writer) {
     }
 }
 
+func (l *Logger) SetOutput(w io.Writer) {
+    l.set_output(w)
+}
+
+func (l *Logger) SetSeverityThreshold(sev_thresh Severity) {
+    l.severity_thresh = sev_thresh
+}
+
+func (l *Logger) SetPrefix(prefix string) {
+    if prefix == "" {
+        prefix = fmt.Sprintf("%s [%d] ", path.Base(os.Args[0]), os.Getpid())
+    }
+    l.prefix = prefix
+}
+
 func (l *Logger) log_sev(call_depth int, sev Severity, m string) error {
     if l.severity_thresh < sev {
         return nil

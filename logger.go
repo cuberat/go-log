@@ -35,6 +35,11 @@ import (
     "strings"
 )
 
+// A Logger represents an active logging object that generates lines of output
+// to an io.Writer. Each logging operation makes a single call to the Writer's
+// Write method or to the Writer's severity-related method, if it implements the
+// SyslogLike interface. A Logger can be used simultaneously from multiple
+// goroutines; it guarantees to serialize access to the Writer.
 type Logger struct {
     severity_thresh Severity
     writer io.Writer
@@ -57,14 +62,19 @@ func (l *Logger) set_output(w io.Writer) {
     }
 }
 
+// Sets the writer where logging output should go.
 func (l *Logger) SetOutput(w io.Writer) {
     l.set_output(w)
 }
 
+// Sets the severity threshold. Anything less important (further down the list
+// of severities) will not be logged.
 func (l *Logger) SetSeverityThreshold(sev_thresh Severity) {
     l.severity_thresh = sev_thresh
 }
 
+// Sets the prefix to add to the beginning of each log line (after the
+// timestamp).
 func (l *Logger) SetPrefix(prefix string) {
     if prefix == "" {
         prefix = fmt.Sprintf("%s [%d] ", path.Base(os.Args[0]), os.Getpid())
@@ -72,22 +82,10 @@ func (l *Logger) SetPrefix(prefix string) {
     l.prefix = prefix
 }
 
-func (l *Logger) log_sev(call_depth int, sev Severity, m string) error {
-    if l.severity_thresh < sev {
-        return nil
-    }
-
-    return l.output(call_depth + 1, m)
-}
-
-func (l *Logger) log_sevf(call_depth int, sev Severity, format string,
-    v ...interface{}) error {
-
-    if l.severity_thresh < sev {
-        return nil
-    }
-
-    return l.output(call_depth + 1, fmt.Sprintf(format, v...))
+// Sets the timestamp generator function. This will be called to generate the
+// timestamp for each log line.
+func (l *Logger) SetTimestampFunc(f TimestampFunc) {
+    l.ts_func = f
 }
 
 // Logs a message with severity LOG_ALERT.
@@ -137,26 +135,6 @@ func (l *Logger) Critf(format string, v ...interface{}) error {
     }
 
     return l.output(1, fmt.Sprintf(format, v...))
-}
-
-type syslog_func func(m string) error
-
-func (l *Logger) out_syslog(log_func syslog_func, call_depth int,
-    m string) error {
-
-    output := l.get_output(call_depth + 1, m, flag_is_syslog)
-
-    l.get_lock()
-    defer l.release_lock()
-
-    return log_func(output)
-}
-
-func (l *Logger) out_syslogf(log_func syslog_func, call_depth int,
-    format string, v ...interface{}) error {
-
-    m := fmt.Sprintf(format, v...)
-    return l.out_syslog(log_func, call_depth + 1, m)
 }
 
 // Logs a message with severity LOG_DEBUG.
@@ -306,6 +284,7 @@ func (l *Logger) Warningf(format string, v ...interface{}) error {
     return l.output(1, fmt.Sprintf(format, v...))
 }
 
+// Writes a log message.
 func (l *Logger) Write(b []byte) (int, error) {
     if l.syslog_writer != nil {
         str := l.get_output(1, string(b), flag_is_syslog)
@@ -318,13 +297,13 @@ func (l *Logger) Write(b []byte) (int, error) {
     return len(b), err
 }
 
-func (l *Logger) Close() error {
-    if closer, ok := l.writer.(io.Closer); ok {
-        return closer.Close()
-    }
-
-    return fmt.Errorf("don't know how to Close() a %T", l.writer)
-}
+// func (l *Logger) Close() error {
+//     if closer, ok := l.writer.(io.Closer); ok {
+//         return closer.Close()
+//     }
+//
+//     return fmt.Errorf("don't know how to Close() a %T", l.writer)
+// }
 
 // Equivalent to Print() followed by a call to os.Exit(1).
 func (l *Logger) Fatal(v ...interface{}) {
@@ -343,72 +322,6 @@ func (l *Logger) Fatalln(v ...interface{}) {
     l.Println(v...)
     os.Exit(1)
 }
-
-func (l *Logger) get_lock() {
-    l.lock_chan <- true
-}
-
-func (l *Logger) release_lock() {
-    <-l.lock_chan
-}
-
-func (l *Logger) get_output(call_depth int, s string, flags uint32) string {
-    parts := make([]string, 0, 4)
-
-    // Leave out the timestamp and prefix if the writer looks like syslog, since
-    // syslog will add these itself.
-    if (flags & flag_is_syslog) == 0 {
-        ts := l.ts_func()
-        parts = append(parts, ts + " ")
-        parts = append(parts, l.prefix)
-    }
-
-    _, file_name, line, _ := runtime.Caller(call_depth + 1)
-    source := fmt.Sprintf("%s:%d", path.Base(file_name), line)
-    parts = append(parts, source + ": ")
-
-    if !strings.HasSuffix(s, "\n") {
-        s += "\n"
-    }
-
-    parts = append(parts, s)
-
-    return strings.Join(parts, "")
-}
-
-func (l *Logger) output(call_depth int, s string) error {
-    return l.output_with_flags(call_depth + 1, s, 0)
-}
-
-func (l *Logger) output_with_flags(call_depth int, s string,
-    flags uint32) error {
-
-    out_str := l.get_output(call_depth + 1, s, flags)
-
-    l.get_lock()
-    defer l.release_lock()
-
-    _, err := fmt.Fprint(l.writer, out_str)
-    return err
-}
-
-func (l *Logger) outputv(call_depth int, v ...interface{}) error {
-    m := fmt.Sprint(v...)
-    return l.output_with_flags(call_depth + 1, m, 0)
-}
-
-func (l *Logger) outputlnv(call_depth int, v ...interface{}) error {
-    m := fmt.Sprintln(v...)
-    return l.output_with_flags(call_depth + 1, m, 0)
-}
-
-func (l *Logger) outputf(call_depth int, format string,
-    v ...interface{}) error {
-
-    m := fmt.Sprintf(format, v...)
-    return l.output_with_flags(call_depth + 1, m, 0)
-}
-
 
 // Equivalent to Print() followed by a call to panic().
 func (l *Logger) Panic(v ...interface{}) {
@@ -463,4 +376,109 @@ func (l *Logger) Printf(format string, v ...interface{}) {
 func (l *Logger) Println(v ...interface{}) {
     m := fmt.Sprintln(v...)
     l.Write([]byte(m))
+}
+
+type syslog_func func(m string) error
+
+func (l *Logger) out_syslog(log_func syslog_func, call_depth int,
+    m string) error {
+
+    output := l.get_output(call_depth + 1, m, flag_is_syslog)
+
+    l.get_lock()
+    defer l.release_lock()
+
+    return log_func(output)
+}
+
+func (l *Logger) out_syslogf(log_func syslog_func, call_depth int,
+    format string, v ...interface{}) error {
+
+    m := fmt.Sprintf(format, v...)
+    return l.out_syslog(log_func, call_depth + 1, m)
+}
+
+func (l *Logger) log_sev(call_depth int, sev Severity, m string) error {
+    if l.severity_thresh < sev {
+        return nil
+    }
+
+    return l.output(call_depth + 1, m)
+}
+
+func (l *Logger) log_sevf(call_depth int, sev Severity, format string,
+    v ...interface{}) error {
+
+    if l.severity_thresh < sev {
+        return nil
+    }
+
+    return l.output(call_depth + 1, fmt.Sprintf(format, v...))
+}
+
+func (l *Logger) get_lock() {
+    l.lock_chan <- true
+}
+
+func (l *Logger) release_lock() {
+    <-l.lock_chan
+}
+
+func (l *Logger) get_output(call_depth int, s string, flags uint32) string {
+    parts := make([]string, 0, 4)
+
+    // Leave out the timestamp and prefix if the writer looks like syslog, since
+    // syslog will add these itself.
+    if (flags & flag_is_syslog) == 0 {
+        if l.ts_func != nil {
+        ts := l.ts_func()
+            parts = append(parts, ts + " ")
+        }
+        parts = append(parts, l.prefix)
+    }
+
+    _, file_name, line, _ := runtime.Caller(call_depth + 1)
+    source := fmt.Sprintf("%s:%d", path.Base(file_name), line)
+    parts = append(parts, source + ": ")
+
+    if !strings.HasSuffix(s, "\n") {
+        s += "\n"
+    }
+
+    parts = append(parts, s)
+
+    return strings.Join(parts, "")
+}
+
+func (l *Logger) output(call_depth int, s string) error {
+    return l.output_with_flags(call_depth + 1, s, 0)
+}
+
+func (l *Logger) output_with_flags(call_depth int, s string,
+    flags uint32) error {
+
+    out_str := l.get_output(call_depth + 1, s, flags)
+
+    l.get_lock()
+    defer l.release_lock()
+
+    _, err := fmt.Fprint(l.writer, out_str)
+    return err
+}
+
+func (l *Logger) outputv(call_depth int, v ...interface{}) error {
+    m := fmt.Sprint(v...)
+    return l.output_with_flags(call_depth + 1, m, 0)
+}
+
+func (l *Logger) outputlnv(call_depth int, v ...interface{}) error {
+    m := fmt.Sprintln(v...)
+    return l.output_with_flags(call_depth + 1, m, 0)
+}
+
+func (l *Logger) outputf(call_depth int, format string,
+    v ...interface{}) error {
+
+    m := fmt.Sprintf(format, v...)
+    return l.output_with_flags(call_depth + 1, m, 0)
 }

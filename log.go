@@ -24,36 +24,48 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// A logger that logs to a file or any io.Writer. If the io.Writer looks like
+// The interface for this logging package is in an alpha state. That is, it may
+// have some non backward compatible changes in upcoming minor releases.
+//
+//
+// This logger logs to a file or any io.Writer. If the io.Writer looks like
 // syslog, then certain parts of the log line will not be generated, as syslog
 // is expected to cover those.
 //
 // This logger looks like syslog, in that it allows for specifying severities
 // when logging. Unlike syslog, however, instead of setting a default severity
 // for logging, a severity threshold is specified at logger creation time that
-// limits logging to that severity and anything more important. The intention is
-// to enable it to be a drop-in replacement, in terms of the API, for the
-// standard log/syslog or log.
+// limits logging to that severity and anything more important. This provides a
+// convenient way to control the verbosity of logging.
+//
+// The intention is to enable this to be a drop-in replacement, interface-wise,
+// for the standard log/syslog or log. In addition, it provides most of the
+// methods offered by the standard log interface.
+//
+// You may create a new logger using New() or NewFromFile(), or, if you want to
+// use the default logger, just call methods directly on the package, which will
+// write to os.Stderr.
+//
+// A Logger can be used simultaneously from multiple goroutines; it guarantees
+// to serialize access to the Writer.
 //
 // Installation:
 //   go get github.com/cuberat/go-log
 package log
-
-// TODO: SeverityFromString
 
 import (
     "fmt"
     "io"
     "os"
     "path"
-    // "runtime"
     "strings"
     "time"
 )
 
+// The Severity type.
 type Severity int
 
-// Severities
+// Severities to be passed to New() or SetSeverityThreshold().
 const (
     LOG_EMERG Severity = iota
     LOG_ALERT
@@ -70,9 +82,10 @@ var (
     default_logger *Logger
 )
 
+// If the io.Writer passed to New() or SetOutput() implements the SyslogLike
+// interface, it is treated as if it actually is a standard log/syslog logger.
 type SyslogLike interface {
     Alert(m string) error
-    Close() error
     Crit(m string) error
     Debug(m string) error
     Emerg(m string) error
@@ -83,8 +96,10 @@ type SyslogLike interface {
     Write(b []byte) (int, error)
 }
 
+// Timestamp generator function type.
 type TimestampFunc func() (string)
 
+// Sets up stuff at package initialization time.
 func init() {
     sev_string_to_sev = map[string]Severity{
         "log_emerg": LOG_EMERG,
@@ -103,6 +118,9 @@ func init() {
     default_logger = New(os.Stderr, LOG_DEBUG, "")
 }
 
+// Converts a severity name to a Severity that can be passed to New() and
+// SetSeverityThreshold(). This is useful for allowing specification of the
+// severity on the command line an creating a logger that uses that threshold.
 func SeverityFromString(sev_string string) (Severity, error) {
     check_sev := strings.ToLower(sev_string)
     if sev, ok := sev_string_to_sev[check_sev]; ok {
@@ -116,17 +134,30 @@ func SeverityFromString(sev_string string) (Severity, error) {
     return Severity(0), fmt.Errorf("Unknown severity %q", sev_string)
 }
 
+// Sets the writer where logging output should go for the default logger.
 func SetOutput(w io.Writer) {
     default_logger.SetOutput(w)
 }
 
+// Sets the severity threshold for the default logger. Anything less important
+// (further down the list of severities) will not be logged.
 func SetSeverityThreshold(sev_thresh Severity) {
     default_logger.SetSeverityThreshold(sev_thresh)
 }
 
+// Sets the prefix to add to the beginning of each log line (after the
+// timestamp) for the default logger.
 func SetPrefix(prefix string) {
     default_logger.SetPrefix(prefix)
 }
+
+// Sets the timestamp generator function for the default logger. This will be
+// called to generate the timestamp for each log line.
+func SetTimestampFunc(f TimestampFunc) {
+    default_logger.SetTimestampFunc(f)
+}
+
+// Sets the timestamp generation function.
 
 // Creates a logger from an io.Writer, with the given severity threshold and
 // prefix string.
@@ -136,7 +167,7 @@ func New(w io.Writer, sev_thresh Severity, prefix string) (*Logger) {
     }
 
     l := new(Logger)
-    l.ts_func = default_ts_func
+    l.SetTimestampFunc(default_ts_func)
     l.set_output(w)
     l.SetSeverityThreshold(sev_thresh)
     l.SetPrefix(prefix)
@@ -163,71 +194,94 @@ func default_ts_func() string {
     return t.Format(time.RFC3339)
 }
 
+// Logs a message with severity LOG_ALERT.
 func Alert(m string) error {
     return default_logger.log_sev(1, LOG_ALERT, m)
 }
 
+// Logs a message with severity LOG_ALERT. Arguments are handled in the manner
+// of fmt.Printf.
 func Alertf(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_ALERT, format, v...)
 }
 
+// Logs a message with severity LOG_CRIT.
 func Crit(m string) error {
     return default_logger.log_sev(1, LOG_CRIT, m)
 }
 
+// Logs a message with severity LOG_CRIT. Arguments are handled in the manner of
+// fmt.Printf.
 func Critf(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_CRIT, format, v...)
 }
 
+// Logs a message with severity LOG_DEBUG.
 func Debug(m string) error {
     return default_logger.log_sev(1, LOG_DEBUG, m)
 }
 
+// Logs a message with severity LOG_DEBUG. Arguments are handled in the manner
+// of fmt.Printf.
 func Debugf(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_DEBUG, format, v...)
 }
 
+// Logs a message with severity LOG_EMERG.
 func Emerg(m string) error {
     return default_logger.log_sev(1, LOG_EMERG, m)
 }
 
+// Logs a message with severity LOG_EMERG. Arguments are handled in the manner
+// of fmt.Printf.
 func Emergf(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_EMERG, format, v...)
 }
 
+// Logs a message with severity LOG_ERR.
 func Err(m string) error {
     return default_logger.log_sev(1, LOG_ERR, m)
 }
 
+// Logs a message with severity LOG_ERR. Arguments are handled in the manner of
+// fmt.Printf.
 func Errf(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_ERR, format, v...)
 }
 
+// Logs a message with severity LOG_INFO.
 func Info(m string) error {
     return default_logger.log_sev(1, LOG_INFO, m)
 }
 
+// Logs a message with severity LOG_INFO. Arguments are handled in the manner of
+// fmt.Printf.
 func Infof(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_INFO, format, v...)
 }
 
+// Logs a message with severity LOG_NOTICE.
 func Notice(m string) error {
     return default_logger.log_sev(1, LOG_NOTICE, m)
 }
 
+// Logs a message with severity LOG_NOTICE. Arguments are handled in the manner
+// of fmt.Printf.
 func Noticef(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_NOTICE, format, v...)
 }
 
+// Logs a message with severity LOG_WARNING.
 func Warning(m string) error {
     return default_logger.log_sev(1, LOG_WARNING, m)
 }
 
+// Logs a message with severity LOG_WARNING. Arguments are handled in the manner
+// of fmt.Printf.
 func Warningf(format string, v ...interface{}) error {
     return default_logger.log_sevf(1, LOG_WARNING, format, v...)
 }
 
-// FIXME: fix up call_depth
 // Equivalent to Print() followed by a call to os.Exit(1).
 func Fatal(v ...interface{}) {
     default_logger.outputv(1, v...)
@@ -246,16 +300,19 @@ func Fatalln(v ...interface{}) {
     os.Exit(1)
 }
 
+// Equivalent to Print() followed by a call to panic().
 func Panic(v ...interface{}) {
     default_logger.outputv(1, v...)
     panic(fmt.Sprint(v...))
 }
 
+// Equivalent to Printf() followed by a call to panic().
 func Panicf(format string, v ...interface{}) {
     default_logger.outputf(1, format, v...)
     panic(fmt.Sprintf(format, v...))
 }
 
+// Equivalent to Println() followed by a call to panic().
 func Panicln(v ...interface{}) {
     default_logger.outputlnv(1, v...)
     panic(fmt.Sprintln(v...))

@@ -24,13 +24,9 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// The interface for this logging package is in an alpha state. That is, it may
-// have some non backward compatible changes in upcoming minor releases.
-//
-//
-// This logger logs to a file or any io.Writer. If the io.Writer looks like
-// syslog, then certain parts of the log line will not be generated, as syslog
-// is expected to cover those.
+// Package log implements a logger that logs to a file or any io.Writer. If the
+// io.Writer looks like syslog, then certain parts of the log line will not be
+// generated, as syslog is expected to cover those.
 //
 // This logger looks like syslog, in that it allows for specifying severities
 // when logging. Unlike syslog, however, instead of setting a default severity
@@ -48,6 +44,9 @@
 //
 // A Logger can be used simultaneously from multiple goroutines; it guarantees
 // to serialize access to the Writer.
+//
+// The interface for this logging package is in an alpha state. That is, it may
+// have some non backward compatible changes in upcoming minor releases.
 //
 // Installation:
 //   go get github.com/cuberat/go-log

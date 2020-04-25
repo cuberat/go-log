@@ -24,10 +24,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// TODO:
-//   - add tests for syslog (Sysloglike) for all severity levels
-//      - create an type that implements Sysloglike
-
 package log_test
 
 import (

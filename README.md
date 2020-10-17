@@ -51,6 +51,8 @@ Installation:
 * [func Emergf(format string, v ...interface{}) error](#Emergf)
 * [func Err(m string) error](#Err)
 * [func Errf(format string, v ...interface{}) error](#Errf)
+* [func Errorf(format string, v ...interface{}) error](#Errorf)
+* [func ErrorfDepth(call_depth int, format string, v ...interface{}) error](#ErrorfDepth)
 * [func Fatal(v ...interface{})](#Fatal)
 * [func Fatalf(format string, v ...interface{})](#Fatalf)
 * [func Fatalln(v ...interface{})](#Fatalln)
@@ -61,9 +63,9 @@ Installation:
 * [func Panic(v ...interface{})](#Panic)
 * [func Panicf(format string, v ...interface{})](#Panicf)
 * [func Panicln(v ...interface{})](#Panicln)
-* [func Print(v ...interface{})](#Print)
-* [func Printf(format string, v ...interface{})](#Printf)
-* [func Println(v ...interface{})](#Println)
+* [func Print(v ...interface{}) error](#Print)
+* [func Printf(format string, v ...interface{}) error](#Printf)
+* [func Println(v ...interface{}) error](#Println)
 * [func SetOutput(w io.Writer)](#SetOutput)
 * [func SetPrefix(prefix string)](#SetPrefix)
 * [func SetSeverityThreshold(sev_thresh Severity)](#SetSeverityThreshold)
@@ -83,6 +85,8 @@ Installation:
   * [func (l *Logger) Emergf(format string, v ...interface{}) error](#Logger.Emergf)
   * [func (l *Logger) Err(m string) error](#Logger.Err)
   * [func (l *Logger) Errf(format string, v ...interface{}) error](#Logger.Errf)
+  * [func (l *Logger) Errorf(format string, v ...interface{}) error](#Logger.Errorf)
+  * [func (l *Logger) ErrorfDepth(call_depth int, format string, v ...interface{}) error](#Logger.ErrorfDepth)
   * [func (l *Logger) Fatal(v ...interface{})](#Logger.Fatal)
   * [func (l *Logger) Fatalf(format string, v ...interface{})](#Logger.Fatalf)
   * [func (l *Logger) Fatalln(v ...interface{})](#Logger.Fatalln)
@@ -93,9 +97,9 @@ Installation:
   * [func (l *Logger) Panic(v ...interface{})](#Logger.Panic)
   * [func (l *Logger) Panicf(format string, v ...interface{})](#Logger.Panicf)
   * [func (l *Logger) Panicln(v ...interface{})](#Logger.Panicln)
-  * [func (l *Logger) Print(v ...interface{})](#Logger.Print)
-  * [func (l *Logger) Printf(format string, v ...interface{})](#Logger.Printf)
-  * [func (l *Logger) Println(v ...interface{})](#Logger.Println)
+  * [func (l *Logger) Print(v ...interface{}) error](#Logger.Print)
+  * [func (l *Logger) Printf(format string, v ...interface{}) error](#Logger.Printf)
+  * [func (l *Logger) Println(v ...interface{}) error](#Logger.Println)
   * [func (l *Logger) SetOutput(w io.Writer)](#Logger.SetOutput)
   * [func (l *Logger) SetPrefix(prefix string)](#Logger.SetPrefix)
   * [func (l *Logger) SetSeverityThreshold(sev_thresh Severity)](#Logger.SetSeverityThreshold)
@@ -201,6 +205,31 @@ fmt.Printf.
 
 
 
+## <a name="Errorf">func</a> [Errorf](/src/target/log.go?s=10829:10879#L327)
+``` go
+func Errorf(format string, v ...interface{}) error
+```
+Returns an error like `fmt.Errorf`, but prepended with the source file name
+and line number.
+
+
+
+## <a name="ErrorfDepth">func</a> [ErrorfDepth](/src/target/log.go?s=11277:11363#L336)
+``` go
+func ErrorfDepth(
+    call_depth int,
+    format string,
+    v ...interface{},
+) error
+```
+Returns an error like `Errorf`, but allows you to specify a call depth. For
+instance, passing a value of 1 as the call_depth will cause the source file
+and line number to correspond to where the enclosing function is called,
+instead of where `ErrorDepth` is called. `ErrorDepth(0, ...)` is equivalent
+to calling `Errorf`.
+
+
+
 ## <a name="Fatal">func</a> [Fatal](/src/target/log.go?s=9317:9345#L275)
 ``` go
 func Fatal(v ...interface{})
@@ -283,25 +312,25 @@ Equivalent to Println() followed by a call to panic().
 
 
 
-## <a name="Print">func</a> [Print](/src/target/log.go?s=10300:10328#L311)
+## <a name="Print">func</a> [Print](/src/target/log.go?s=10300:10334#L311)
 ``` go
-func Print(v ...interface{})
+func Print(v ...interface{}) error
 ```
 Prints to the logger. Arguments are handled in the manner of fmt.Print.
 
 
 
-## <a name="Printf">func</a> [Printf](/src/target/log.go?s=10446:10490#L316)
+## <a name="Printf">func</a> [Printf](/src/target/log.go?s=10459:10509#L316)
 ``` go
-func Printf(format string, v ...interface{})
+func Printf(format string, v ...interface{}) error
 ```
 Prints to the logger. Arguments are handled in the manner of fmt.Printf.
 
 
 
-## <a name="Println">func</a> [Println](/src/target/log.go?s=10617:10647#L321)
+## <a name="Println">func</a> [Println](/src/target/log.go?s=10643:10679#L321)
 ``` go
-func Println(v ...interface{})
+func Println(v ...interface{}) error
 ```
 Prints to the logger. Arguments are handled in the manner of fmt.Println.
 
@@ -487,8 +516,35 @@ Logs a message with severity LOG_ERR.
 ``` go
 func (l *Logger) Errf(format string, v ...interface{}) error
 ```
-Logs a message with severity LOG_ERR. Arguments are handled in the manner of
-fmt.Printf.
+Logs a message with severity LOG_ERR. Arguments are handled in the manner
+of fmt.Printf.
+
+
+
+
+### <a name="Logger.Errorf">func</a> (\*Logger) [Errorf](/src/target/logger.go?s=10415:10477#L351)
+``` go
+func (l *Logger) Errorf(format string, v ...interface{}) error
+```
+Returns an error like `fmt.Errorf`, but prepended with the source file name
+and line number.
+
+
+
+
+### <a name="Logger.ErrorfDepth">func</a> (\*Logger) [ErrorfDepth](/src/target/logger.go?s=10862:10960#L360)
+``` go
+func (l *Logger) ErrorfDepth(
+    call_depth int,
+    format string,
+    v ...interface{},
+) error
+```
+Returns an error like `Errorf`, but allows you to specify a call depth. For
+instance, passing a value of 1 as the call_depth will cause the source file
+and line number to correspond to where the enclosing function is called,
+instead of where `ErrorDepth` is called. `ErrorDepth(0, ...)` is equivalent
+to calling `Errorf`.
 
 
 
@@ -502,7 +558,7 @@ Equivalent to Print() followed by a call to os.Exit(1).
 
 
 
-### <a name="Logger.Fatalf">func</a> (\*Logger) [Fatalf](/src/target/logger.go?s=9038:9094#L305)
+### <a name="Logger.Fatalf">func</a> (\*Logger) [Fatalf](/src/target/logger.go?s=9056:9112#L305)
 ``` go
 func (l *Logger) Fatalf(format string, v ...interface{})
 ```
@@ -511,7 +567,7 @@ Equivalent to Printf() followed by a call to os.Exit(1).
 
 
 
-### <a name="Logger.Fatalln">func</a> (\*Logger) [Fatalln](/src/target/logger.go?s=9203:9245#L311)
+### <a name="Logger.Fatalln">func</a> (\*Logger) [Fatalln](/src/target/logger.go?s=9225:9267#L311)
 ``` go
 func (l *Logger) Fatalln(v ...interface{})
 ```
@@ -533,8 +589,8 @@ Logs a message with severity LOG_INFO.
 ``` go
 func (l *Logger) Infof(format string, v ...interface{}) error
 ```
-Logs a message with severity LOG_INFO. Arguments are handled in the manner of
-fmt.Printf.
+Logs a message with severity LOG_INFO. Arguments are handled in the manner
+of fmt.Printf.
 
 
 
@@ -552,13 +608,13 @@ Logs a message with severity LOG_NOTICE.
 ``` go
 func (l *Logger) Noticef(format string, v ...interface{}) error
 ```
-Logs a message with severity LOG_NOTICE. Arguments are handled in the manner
-of fmt.Printf.
+Logs a message with severity LOG_NOTICE. Arguments are handled in the
+manner of fmt.Printf.
 
 
 
 
-### <a name="Logger.Panic">func</a> (\*Logger) [Panic](/src/target/logger.go?s=9342:9382#L317)
+### <a name="Logger.Panic">func</a> (\*Logger) [Panic](/src/target/logger.go?s=9369:9409#L317)
 ``` go
 func (l *Logger) Panic(v ...interface{})
 ```
@@ -567,7 +623,7 @@ Equivalent to Print() followed by a call to panic().
 
 
 
-### <a name="Logger.Panicf">func</a> (\*Logger) [Panicf](/src/target/logger.go?s=9671:9727#L329)
+### <a name="Logger.Panicf">func</a> (\*Logger) [Panicf](/src/target/logger.go?s=9523:9579#L323)
 ``` go
 func (l *Logger) Panicf(format string, v ...interface{})
 ```
@@ -576,7 +632,7 @@ Equivalent to Printf() followed by a call to panic().
 
 
 
-### <a name="Logger.Panicln">func</a> (\*Logger) [Panicln](/src/target/logger.go?s=10056:10098#L342)
+### <a name="Logger.Panicln">func</a> (\*Logger) [Panicln](/src/target/logger.go?s=9711:9753#L329)
 ``` go
 func (l *Logger) Panicln(v ...interface{})
 ```
@@ -585,27 +641,27 @@ Equivalent to Println() followed by a call to panic().
 
 
 
-### <a name="Logger.Print">func</a> (\*Logger) [Print](/src/target/logger.go?s=10409:10449#L354)
+### <a name="Logger.Print">func</a> (\*Logger) [Print](/src/target/logger.go?s=9889:9935#L335)
 ``` go
-func (l *Logger) Print(v ...interface{})
+func (l *Logger) Print(v ...interface{}) error
 ```
 Prints to the logger. Arguments are handled in the manner of fmt.Print.
 
 
 
 
-### <a name="Logger.Printf">func</a> (\*Logger) [Printf](/src/target/logger.go?s=10580:10636#L360)
+### <a name="Logger.Printf">func</a> (\*Logger) [Printf](/src/target/logger.go?s=10047:10109#L340)
 ``` go
-func (l *Logger) Printf(format string, v ...interface{})
+func (l *Logger) Printf(format string, v ...interface{}) error
 ```
 Prints to the logger. Arguments are handled in the manner of fmt.Printf.
 
 
 
 
-### <a name="Logger.Println">func</a> (\*Logger) [Println](/src/target/logger.go?s=10777:10819#L366)
+### <a name="Logger.Println">func</a> (\*Logger) [Println](/src/target/logger.go?s=10230:10278#L345)
 ``` go
-func (l *Logger) Println(v ...interface{})
+func (l *Logger) Println(v ...interface{}) error
 ```
 Prints to the logger. Arguments are handled in the manner of fmt.Println.
 
@@ -664,8 +720,8 @@ Logs a message with severity LOG_WARNING.
 ``` go
 func (l *Logger) Warningf(format string, v ...interface{}) error
 ```
-Logs a message with severity LOG_WARNING. Arguments are handled in the manner
-of fmt.Printf.
+Logs a message with severity LOG_WARNING. Arguments are handled in the
+manner of fmt.Printf.
 
 
 

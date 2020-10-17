@@ -318,16 +318,35 @@ func Panicln(v ...interface{}) {
 }
 
 // Prints to the logger. Arguments are handled in the manner of fmt.Print.
-func Print(v ...interface{}) {
-    default_logger.outputv(1, v...)
+func Print(v ...interface{}) error {
+    return default_logger.outputv(1, v...)
 }
 
 // Prints to the logger. Arguments are handled in the manner of fmt.Printf.
-func Printf(format string, v ...interface{}) {
-    default_logger.outputf(1, format, v...)
+func Printf(format string, v ...interface{}) error {
+    return default_logger.outputf(1, format, v...)
 }
 
 // Prints to the logger. Arguments are handled in the manner of fmt.Println.
-func Println(v ...interface{}) {
-    default_logger.outputlnv(1, v...)
+func Println(v ...interface{}) error {
+    return default_logger.outputlnv(1, v...)
+}
+
+// Returns an error like `fmt.Errorf`, but prepended with the source file name
+// and line number.
+func Errorf(format string, v ...interface{}) error {
+    return default_logger.ErrorfDepth(1, format, v...)
+}
+
+// Returns an error like `Errorf`, but allows you to specify a call depth. For
+// instance, passing a value of 1 as the call_depth will cause the source file
+// and line number to correspond to where the enclosing function is called,
+// instead of where `ErrorDepth` is called. `ErrorDepth(0, ...)` is equivalent
+// to calling `Errorf`.
+func ErrorfDepth(
+    call_depth int,
+    format string,
+    v ...interface{},
+) error {
+    return default_logger.ErrorfDepth(call_depth + 1, format, v...)
 }

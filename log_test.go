@@ -31,6 +31,7 @@ import (
     "fmt"
     "io"
     log "github.com/cuberat/go-log"
+    "os"
     "strings"
     "testing"
 )
@@ -479,4 +480,203 @@ func (l *SyslogLikeLogger) Warning(m string) error {
 
 func (l *SyslogLikeLogger) Write(b []byte) (int, error) {
     return fmt.Fprintf(l.Writer, "%s\n", b)
+}
+
+type LogFuncPlain func(string) error
+type LogFuncVar func(string, ...interface{}) error
+type LogFuncPureVar func(...interface{}) error
+
+type LogSourceTesterPlain struct {
+    Func LogFuncPlain
+    Label string
+}
+
+type LogSourceTesterVar struct {
+    Func LogFuncVar
+    Label string
+}
+
+type LogSourceTesterPureVar struct {
+    Func LogFuncPureVar
+    Label string
+}
+
+func TestSourceDefault(t *testing.T) {
+    plain_testers := []*LogSourceTesterPlain{
+        &LogSourceTesterPlain{log.Emerg, "Emerg"},
+        &LogSourceTesterPlain{log.Alert, "Alert"},
+        &LogSourceTesterPlain{log.Crit, "Crit"},
+        &LogSourceTesterPlain{log.Err, "Err"},
+        &LogSourceTesterPlain{log.Warning, "Warning"},
+        &LogSourceTesterPlain{log.Notice, "Notice"},
+        &LogSourceTesterPlain{log.Info, "Info"},
+        &LogSourceTesterPlain{log.Debug, "Debug"},
+    }
+
+    log.SetSeverityThreshold(log.LOG_DEBUG)
+
+    for _, tester := range plain_testers {
+        t.Run("log." + tester.Label, func(st *testing.T) {
+            b := new(strings.Builder)
+            log.SetOutput(b)
+            tester.Func("foo")
+            output := b.String()
+
+            // t.Logf("got %q", output)
+            if !strings.Contains(output, "log_test.go:") {
+                st.Errorf("missing file name in line for default func %q: %q",
+                    tester.Label, output)
+            }
+        })
+    }
+
+    var_testers := []*LogSourceTesterVar{
+        &LogSourceTesterVar{log.Emergf, "Emergf"},
+        &LogSourceTesterVar{log.Alertf, "Alertf"},
+        &LogSourceTesterVar{log.Critf, "Critf"},
+        &LogSourceTesterVar{log.Errf, "Errf"},
+        &LogSourceTesterVar{log.Warningf, "Warningf"},
+        &LogSourceTesterVar{log.Noticef, "Noticef"},
+        &LogSourceTesterVar{log.Infof, "Infof"},
+        &LogSourceTesterVar{log.Debugf, "Debugf"},
+        &LogSourceTesterVar{log.Printf, "Printf"},
+    }
+
+    log.SetSeverityThreshold(log.LOG_DEBUG)
+
+    for _, tester := range var_testers {
+        t.Run("log." + tester.Label, func(st *testing.T) {
+            b := new(strings.Builder)
+            log.SetOutput(b)
+            tester.Func("%s", "foo")
+            output := b.String()
+
+            // t.Logf("got %q", output)
+            if !strings.Contains(output, "log_test.go:") {
+                st.Errorf("missing file name in line for default func %q: %q",
+                    tester.Label, output)
+            }
+        })
+    }
+
+    pure_var_testers := []*LogSourceTesterPureVar{
+        &LogSourceTesterPureVar{log.Print, "Print"},
+        &LogSourceTesterPureVar{log.Println, "Println"},
+    }
+
+    log.SetSeverityThreshold(log.LOG_DEBUG)
+
+    for _, tester := range pure_var_testers {
+        t.Run("log." + tester.Label, func(st *testing.T) {
+            b := new(strings.Builder)
+            log.SetOutput(b)
+            tester.Func("foo", "bar")
+            output := b.String()
+
+            // t.Logf("got %q", output)
+            if !strings.Contains(output, "log_test.go:") {
+                st.Errorf("missing file name in line for default func %q: %q",
+                    tester.Label, output)
+            }
+        })
+    }
+
+    t.Run("logger.Errorf", func(st *testing.T) {
+        err := log.Errorf("foo %s", "bar")
+        if !strings.Contains(err.Error(), "log_test.go") {
+            st.Errorf("missing file name in line for log.Errorf(): got %q",
+                err.Error())
+        }
+    })
+}
+
+func TestSourceMethod(t *testing.T) {
+    logger := log.New(os.Stderr, log.LOG_DEBUG, "")
+
+    plain_testers := []*LogSourceTesterPlain{
+        &LogSourceTesterPlain{logger.Emerg, "Emerg"},
+        &LogSourceTesterPlain{logger.Alert, "Alert"},
+        &LogSourceTesterPlain{logger.Crit, "Crit"},
+        &LogSourceTesterPlain{logger.Err, "Err"},
+        &LogSourceTesterPlain{logger.Warning, "Warning"},
+        &LogSourceTesterPlain{logger.Notice, "Notice"},
+        &LogSourceTesterPlain{logger.Info, "Info"},
+        &LogSourceTesterPlain{logger.Debug, "Debug"},
+    }
+
+    logger.SetSeverityThreshold(log.LOG_DEBUG)
+
+    for _, tester := range plain_testers {
+        t.Run("logger." + tester.Label, func(st *testing.T) {
+            b := new(strings.Builder)
+            logger.SetOutput(b)
+            tester.Func("foo")
+            output := b.String()
+
+            // t.Logf("got %q", output)
+            if !strings.Contains(output, "log_test.go:") {
+                st.Errorf("missing file name in line for method %q: %q",
+                    tester.Label, output)
+            }
+        })
+    }
+
+    var_testers := []*LogSourceTesterVar{
+        &LogSourceTesterVar{logger.Emergf, "Emergf"},
+        &LogSourceTesterVar{logger.Alertf, "Alertf"},
+        &LogSourceTesterVar{logger.Critf, "Critf"},
+        &LogSourceTesterVar{logger.Errf, "Errf"},
+        &LogSourceTesterVar{logger.Warningf, "Warningf"},
+        &LogSourceTesterVar{logger.Noticef, "Noticef"},
+        &LogSourceTesterVar{logger.Infof, "Infof"},
+        &LogSourceTesterVar{logger.Debugf, "Debugf"},
+        &LogSourceTesterVar{logger.Printf, "Printf"},
+    }
+
+    logger.SetSeverityThreshold(log.LOG_DEBUG)
+
+    for _, tester := range var_testers {
+        t.Run("logger." + tester.Label, func(st *testing.T) {
+            b := new(strings.Builder)
+            logger.SetOutput(b)
+            tester.Func("%s", "foo")
+            output := b.String()
+
+            // t.Logf("got %q", output)
+            if !strings.Contains(output, "log_test.go:") {
+                st.Errorf("missing file name in line for method %q: %q",
+                    tester.Label, output)
+            }
+        })
+    }
+
+    pure_var_testers := []*LogSourceTesterPureVar{
+        &LogSourceTesterPureVar{logger.Print, "Print"},
+        &LogSourceTesterPureVar{logger.Println, "Println"},
+    }
+
+    logger.SetSeverityThreshold(log.LOG_DEBUG)
+
+    for _, tester := range pure_var_testers {
+        t.Run("logger." + tester.Label, func(st *testing.T) {
+            b := new(strings.Builder)
+            logger.SetOutput(b)
+            tester.Func("foo", "bar")
+            output := b.String()
+
+            // t.Logf("got %q", output)
+            if !strings.Contains(output, "log_test.go:") {
+                st.Errorf("missing file name in line for method %q: %q",
+                    tester.Label, output)
+            }
+        })
+    }
+
+    t.Run("logger.Errorf", func(st *testing.T) {
+        err := logger.Errorf("foo %s", "bar")
+        if !strings.Contains(err.Error(), "log_test.go") {
+            st.Errorf("missing file name in line for logger.Errorf(): got %q",
+                err.Error())
+        }
+    })
 }

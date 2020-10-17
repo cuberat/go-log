@@ -196,8 +196,8 @@ func (l *Logger) Err(m string) error {
     return l.output(1, m)
 }
 
-// Logs a message with severity LOG_ERR. Arguments are handled in the manner of
-// fmt.Printf.
+// Logs a message with severity LOG_ERR. Arguments are handled in the manner
+// of fmt.Printf.
 func (l *Logger) Errf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_ERR {
         return nil
@@ -221,8 +221,8 @@ func (l *Logger) Info(m string) error {
     return l.output(1, m)
 }
 
-// Logs a message with severity LOG_INFO. Arguments are handled in the manner of
-// fmt.Printf.
+// Logs a message with severity LOG_INFO. Arguments are handled in the manner
+// of fmt.Printf.
 func (l *Logger) Infof(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_INFO {
         return nil
@@ -246,8 +246,8 @@ func (l *Logger) Notice(m string) error {
     return l.output(1, m)
 }
 
-// Logs a message with severity LOG_NOTICE. Arguments are handled in the manner
-// of fmt.Printf.
+// Logs a message with severity LOG_NOTICE. Arguments are handled in the
+// manner of fmt.Printf.
 func (l *Logger) Noticef(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_NOTICE {
         return nil
@@ -271,8 +271,8 @@ func (l *Logger) Warning(m string) error {
     return l.output(1, m)
 }
 
-// Logs a message with severity LOG_WARNING. Arguments are handled in the manner
-// of fmt.Printf.
+// Logs a message with severity LOG_WARNING. Arguments are handled in the
+// manner of fmt.Printf.
 func (l *Logger) Warningf(format string, v ...interface{}) error {
     if l.severity_thresh < LOG_WARNING {
         return nil
@@ -307,75 +307,75 @@ func (l *Logger) Write(b []byte) (int, error) {
 
 // Equivalent to Print() followed by a call to os.Exit(1).
 func (l *Logger) Fatal(v ...interface{}) {
-    l.Print(v...)
+    default_logger.outputv(1, v...)
     os.Exit(1)
 }
 
 // Equivalent to Printf() followed by a call to os.Exit(1).
 func (l *Logger) Fatalf(format string, v ...interface{}) {
-    l.Printf(format, v...)
+    l.outputf(1, format, v...)
     os.Exit(1)
 }
 
 // Equivalent to Println() followed by a call to os.Exit(1).
 func (l *Logger) Fatalln(v ...interface{}) {
-    l.Println(v...)
+    l.outputlnv(1, v...)
     os.Exit(1)
 }
 
 // Equivalent to Print() followed by a call to panic().
 func (l *Logger) Panic(v ...interface{}) {
-    if l.syslog_writer != nil {
-        str := l.get_output(1, fmt.Sprint(v...), flag_is_syslog)
-        l.syslog_writer.Write([]byte(str))
-    } else {
-        l.output(1, fmt.Sprint(v...))
-    }
-
+    l.outputv(1, v...)
     panic(fmt.Sprint(v...))
 }
 
 // Equivalent to Printf() followed by a call to panic().
 func (l *Logger) Panicf(format string, v ...interface{}) {
-    if l.syslog_writer != nil {
-        str := l.get_output(1,
-            fmt.Sprintf(format, v...), flag_is_syslog)
-        l.syslog_writer.Write([]byte(str))
-    } else {
-        l.output(1, fmt.Sprintf(format, v...))
-    }
-
+    l.outputf(1, format, v...)
     panic(fmt.Sprintf(format, v...))
 }
 
 // Equivalent to Println() followed by a call to panic().
 func (l *Logger) Panicln(v ...interface{}) {
-    if l.syslog_writer != nil {
-        str := l.get_output(1, fmt.Sprintln(v...), flag_is_syslog)
-        l.syslog_writer.Write([]byte(str))
-    } else {
-        l.output(1, fmt.Sprint(v...))
-    }
-
+    l.outputlnv(1, v...)
     panic(fmt.Sprintln(v...))
 }
 
 // Prints to the logger. Arguments are handled in the manner of fmt.Print.
-func (l *Logger) Print(v ...interface{}) {
-    m := fmt.Sprint(v...)
-    l.Write([]byte(m))
+func (l *Logger) Print(v ...interface{}) error {
+    return l.outputv(1, v...)
 }
 
 // Prints to the logger. Arguments are handled in the manner of fmt.Printf.
-func (l *Logger) Printf(format string, v ...interface{}) {
-    m := fmt.Sprintf(format, v...)
-    l.Write([]byte(m))
+func (l *Logger) Printf(format string, v ...interface{}) error {
+    return l.outputf(1, format, v...)
 }
 
 // Prints to the logger. Arguments are handled in the manner of fmt.Println.
-func (l *Logger) Println(v ...interface{}) {
-    m := fmt.Sprintln(v...)
-    l.Write([]byte(m))
+func (l *Logger) Println(v ...interface{}) error {
+    return l.outputlnv(1, v...)
+}
+
+// Returns an error like `fmt.Errorf`, but prepended with the source file name
+// and line number.
+func (l *Logger) Errorf(format string, v ...interface{}) error {
+    return l.ErrorfDepth(1, format, v...)
+}
+
+// Returns an error like `Errorf`, but allows you to specify a call depth. For
+// instance, passing a value of 1 as the call_depth will cause the source file
+// and line number to correspond to where the enclosing function is called,
+// instead of where `ErrorDepth` is called. `ErrorDepth(0, ...)` is equivalent
+// to calling `Errorf`.
+func (l *Logger) ErrorfDepth(
+    call_depth int,
+    format string,
+    v ...interface{},
+) error {
+    _, file_name, line, _ := runtime.Caller(call_depth + 1)
+    source := fmt.Sprintf("%s:%d", path.Base(file_name), line)
+
+    return fmt.Errorf("%s %s", source, fmt.Sprintf(format, v...))
 }
 
 type syslog_func func(m string) error
